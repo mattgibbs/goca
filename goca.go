@@ -12,12 +12,42 @@ import (
 )
 
 type ConnectionCallback func(connected bool)
+type SubscriptionCallback func(val float32)
+
 
 type PV struct {
 	Pvname string
 	chid C.chid
-	connected bool
-	connection_callback ConnectionCallback
+	Connected bool
+	ConnCallback ConnectionCallback
+	EventCallback SubscriptionCallback
+}
+
+func (pv *PV) Connect() int {
+	var chid C.chid
+	ret_status := int(C.ca_create_channel_cgo(C.CString(pv.Pvname), unsafe.Pointer(C.handleConnection_cgo), unsafe.Pointer(pv), C.int(50), &chid))
+	pv.chid = chid
+	return ret_status
+}
+
+func (pv *PV) Disconnect() int {
+	return int(C.ca_clear_channel(pv.chid))
+}
+
+func (pv *PV) Monitor() int {
+	count := 0
+	mask := uint(C.DBE_VALUE) | uint(C.DBE_ALARM)
+	val_type := (C.chtype)(C.DBR_DOUBLE)
+	var evid C.evid
+	ret_status := int(C.ca_create_subscription_cgo(val_type, C.ulong(count), pv.chid, C.long(mask), unsafe.Pointer(C.handleEvent_cgo), unsafe.Pointer(pv), &evid))
+	return ret_status
+}
+
+//export handleEvent
+func handleEvent(pv_ptr unsafe.Pointer, chid C.chid, val_type C.long, count C.long, val_ptr unsafe.Pointer, status int) {
+	pv := (*PV)(pv_ptr)
+	value := float32(*((*C.double)(val_ptr)))
+	pv.EventCallback(value)
 }
 
 //export handleConnection
@@ -31,18 +61,21 @@ func handleConnection(chid C.chid, op C.long) {
 	} else {
 		connected = false
 	}
-	pv.connected = connected
-	pv.connection_callback(connected)
+	pv.Connected = connected
+	pv.Monitor()
+	pv.ConnCallback(connected)
 }
 
-func NewPV(name string, cb ConnectionCallback) (*PV, int) {
+func NewPV(name string, ccb ConnectionCallback, scb SubscriptionCallback, autoconnect bool) (*PV) {
 	pv := &PV{
 		Pvname: name,
-		connection_callback: cb,
+		ConnCallback: ccb,
+		EventCallback: scb,
 	}
-	var chid C.chid
-	ret_status := int(C.ca_create_channel_cgo(C.CString(pv.Pvname), unsafe.Pointer(C.handleConnection_cgo), unsafe.Pointer(pv), C.int(50), &chid))
-	return pv, ret_status
+	if autoconnect {
+		pv.Connect()
+	}
+	return pv
 }
 
 func ContextCreate(preemptive bool) int {
