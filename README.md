@@ -1,7 +1,7 @@
 cago: A Go interface to EPICS Channel Access
 ============================================
 
-cago is a Go binding for the Channel Access library.
+cago is a Go binding for the Channel Access library.  It uses cgo to call the C-based channel access library, and wraps it into an easy to use, object-oriented interface.
 
 How to use
 ----------
