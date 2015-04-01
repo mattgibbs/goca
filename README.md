@@ -6,6 +6,8 @@ cago is a Go binding for the Channel Access library.
 How to use
 ----------
 Make a new PV struct with cago.NewPV.  Define connection and event callbacks.
+	
+	
 	package main
 	import "github.com/mattgibbs/goca"
 	import (
